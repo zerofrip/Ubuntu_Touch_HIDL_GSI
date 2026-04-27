@@ -2,20 +2,6 @@
 # =============================================================================
 # scripts/build_rootfs.sh — Ubuntu chroot rootfs builder (Halium-style)
 # =============================================================================
-# Builds the Ubuntu rootfs that lives inside the system.img at
-# `/system/usr/share/ubuntu-gsi/rootfs.erofs` and is `chroot`ed into by
-# `ubuntu-gsi-launcher` after Android boot completes.
-#
-# Differences from the legacy builder:
-#   • No /init script and no mount.sh — Android init is PID 1.
-#   • No HIDL/AIDL HAL wrapper shells — vendor HALs are reachable through
-#     /dev/binderfs natively.
-#   • Includes the libhybris/Mir/Lomiri stack (Halium dependencies).
-#   • Compat engine is sourced from halium/compat/ (single source of truth).
-#
-# Usage:
-#   sudo bash scripts/build_rootfs.sh
-# =============================================================================
 
 set -euo pipefail
 
@@ -37,9 +23,22 @@ OVERLAY_DIR="$REPO_ROOT/rootfs/overlay"
 SYSTEMD_DIR="$REPO_ROOT/rootfs/systemd"
 HALIUM_DIR="$REPO_ROOT/halium"
 
-# ---------------------------------------------------------------------------
-# Color helpers
-# ---------------------------------------------------------------------------
+# CI builds should be stable and fast; full Lomiri stacks can be unavailable
+# on public CI mirrors, so default to minimal package set under CI.
+CI_MINIMAL_PACKAGES="${GSI_CI_MINIMAL_PACKAGES:-}"
+if [ -z "$CI_MINIMAL_PACKAGES" ] && [ "${CI:-}" = "true" ]; then
+    CI_MINIMAL_PACKAGES=1
+fi
+
+if [ -n "${GSI_VARIANT:-}" ]; then
+    VARIANT="$GSI_VARIANT"
+else
+    case "$(basename "$REPO_ROOT")" in
+        *AIDL*) VARIANT="aidl" ;;
+        *)      VARIANT="hidl" ;;
+    esac
+fi
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -50,9 +49,6 @@ info()    { echo -e "${CYAN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
 success() { echo -e "${GREEN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
 error()   { echo -e "${RED}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
 
-# ---------------------------------------------------------------------------
-# Pre-flight
-# ---------------------------------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
     error "This script must be run as root (debootstrap requires it)."
     error "  sudo bash $0"
@@ -71,16 +67,14 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${BOLD}         Ubuntu GSI — Halium-style chroot rootfs builder      ${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
+info "Variant      : $VARIANT"
 info "Architecture : $ARCH"
 info "Suite        : $SUITE"
 info "Target       : $TARGET_DIR"
+[ -n "$CI_MINIMAL_PACKAGES" ] && info "CI mode      : minimal package set"
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 1: Debootstrap
-# ---------------------------------------------------------------------------
 info "Phase 1 — Debootstrap ($SUITE for $ARCH)"
-
 if [ -d "$TARGET_DIR" ] && [ -f "$TARGET_DIR/etc/os-release" ]; then
     info "Existing rootfs detected — skipping debootstrap"
 else
@@ -99,7 +93,7 @@ else
         DEBOOTSTRAP_OPTS="$DEBOOTSTRAP_OPTS --foreign"
     fi
 
-    # shellcheck disable=SC2086 # intentional word splitting on opts
+    # shellcheck disable=SC2086
     debootstrap $DEBOOTSTRAP_OPTS "$SUITE" "$TARGET_DIR" "$MIRROR"
 
     if echo "$DEBOOTSTRAP_OPTS" | grep -q "foreign"; then
@@ -113,44 +107,39 @@ else
 fi
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 2: APT sources (Ubuntu + UBports for Lomiri)
-# ---------------------------------------------------------------------------
 info "Phase 2 — Configuring apt sources"
-
-cat > "$TARGET_DIR/etc/apt/sources.list" << EOF
+cat > "$TARGET_DIR/etc/apt/sources.list" << EOF2
 deb $MIRROR $SUITE main restricted universe multiverse
 deb $MIRROR ${SUITE}-updates main restricted universe multiverse
 deb $MIRROR ${SUITE}-security main restricted universe multiverse
-EOF
+EOF2
 
-mkdir -p "$TARGET_DIR/etc/apt/sources.list.d" \
-         "$TARGET_DIR/etc/apt/trusted.gpg.d"
+mkdir -p "$TARGET_DIR/etc/apt/sources.list.d" "$TARGET_DIR/etc/apt/trusted.gpg.d"
 cat > "$TARGET_DIR/etc/apt/sources.list.d/ubports.list" <<'UBEOF'
 deb http://repo.ubports.com/ focal main
 UBEOF
 
 if command -v wget >/dev/null 2>&1; then
     wget -qO "$TARGET_DIR/etc/apt/trusted.gpg.d/ubports-signing.gpg" \
-        "http://repo.ubports.com/pubkey.gpg" 2>/dev/null \
-        || info "WARNING: Could not fetch UBports signing key"
+        "http://repo.ubports.com/pubkey.gpg" 2>/dev/null || \
+        info "WARNING: Could not fetch UBports signing key"
 fi
 
 success "apt sources configured (Ubuntu + UBports)"
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 3: Install packages (Linux base + Lomiri + libhybris)
-# ---------------------------------------------------------------------------
 info "Phase 3 — Installing packages"
-
-PACKAGES=""
-if [ -f "$PACKAGES_FILE" ]; then
-    PACKAGES=$(grep -v '^#' "$PACKAGES_FILE" | grep -v '^$' | tr '\n' ' ')
-    info "Packages from $PACKAGES_FILE: $(echo "$PACKAGES" | wc -w) entries"
+if [ -n "$CI_MINIMAL_PACKAGES" ]; then
+    PACKAGES="systemd systemd-sysv dbus udev sudo bash bash-completion locales ca-certificates network-manager iproute2 openssh-server"
+    info "Using minimal package set for CI stability"
 else
-    info "No packages.list found — installing minimal set"
-    PACKAGES="systemd systemd-sysv sudo bash-completion openssh-server"
+    PACKAGES=""
+    if [ -f "$PACKAGES_FILE" ]; then
+        PACKAGES=$(grep -v '^#' "$PACKAGES_FILE" | grep -v '^$' | tr '\n' ' ')
+        info "Packages from $PACKAGES_FILE: $(echo "$PACKAGES" | wc -w) entries"
+    else
+        PACKAGES="systemd systemd-sysv sudo bash-completion openssh-server"
+    fi
 fi
 
 mount --bind /dev     "$TARGET_DIR/dev"     || true
@@ -158,7 +147,7 @@ mount --bind /dev/pts "$TARGET_DIR/dev/pts" || true
 mount -t proc  proc   "$TARGET_DIR/proc"    || true
 mount -t sysfs sysfs  "$TARGET_DIR/sys"     || true
 
-# shellcheck disable=SC2086 # intentional word splitting on PACKAGES
+# shellcheck disable=SC2086
 chroot "$TARGET_DIR" bash -c "
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
@@ -175,9 +164,6 @@ umount "$TARGET_DIR/dev"     2>/dev/null || true
 success "Packages installed"
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 4: Apply overlay files (rootfs/overlay)
-# ---------------------------------------------------------------------------
 info "Phase 4 — Applying overlay"
 if [ -d "$OVERLAY_DIR" ]; then
     cp -a "$OVERLAY_DIR"/. "$TARGET_DIR/"
@@ -185,9 +171,6 @@ if [ -d "$OVERLAY_DIR" ]; then
 fi
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 5: Install systemd units (only the surviving ones)
-# ---------------------------------------------------------------------------
 info "Phase 5 — Installing systemd units"
 if [ -d "$SYSTEMD_DIR" ]; then
     mkdir -p "$TARGET_DIR/etc/systemd/system"
@@ -196,40 +179,26 @@ if [ -d "$SYSTEMD_DIR" ]; then
 
     for svc in lomiri ubuntu-gsi-firstboot ubuntu-gsi-setup-wizard ubuntu-gsi-compat usb-gadget; do
         if [ -f "$TARGET_DIR/etc/systemd/system/${svc}.service" ]; then
-            chroot "$TARGET_DIR" systemctl enable "${svc}.service" 2>/dev/null \
-                && info "Enabled: ${svc}.service" \
-                || info "WARNING: could not enable ${svc}.service"
+            chroot "$TARGET_DIR" systemctl enable "${svc}.service" 2>/dev/null || true
         fi
     done
     success "Systemd units installed"
 fi
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 6: Halium scaffolding (compat layer + Lomiri launcher inside chroot)
-# ---------------------------------------------------------------------------
 info "Phase 6 — Installing Halium scaffolding inside the chroot"
-
-# 6a. compat layer
 mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/compat"
 cp -a "$HALIUM_DIR/compat/." "$TARGET_DIR/usr/lib/ubuntu-gsi/compat/"
 find "$TARGET_DIR/usr/lib/ubuntu-gsi/compat" -type f -name '*.sh' -exec chmod 0755 {} \;
-info "compat layer installed at /usr/lib/ubuntu-gsi/compat"
 
-# 6b. Lomiri launcher (also lives in /system, but available inside the chroot
-#     so SSH users can poke at it directly).
 mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/halium"
 install -m 0755 "$HALIUM_DIR/lomiri/start-lomiri.sh" \
     "$TARGET_DIR/usr/lib/ubuntu-gsi/halium/start-lomiri.sh"
-info "start-lomiri.sh installed at /usr/lib/ubuntu-gsi/halium/"
 
-# 6c. firstboot/setup wizard already shipped via overlay; ensure exec bit.
 for f in firstboot.sh setup-wizard.sh usb-gadget.sh; do
-    [ -f "$TARGET_DIR/usr/lib/ubuntu-gsi/$f" ] && \
-        chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/$f"
+    [ -f "$TARGET_DIR/usr/lib/ubuntu-gsi/$f" ] && chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/$f"
 done
 
-# 6d. GUI install hook (legacy, kept for manual chroot use)
 if [ -d "$REPO_ROOT/gui" ]; then
     mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/gui"
     cp -r "$REPO_ROOT/gui/"* "$TARGET_DIR/usr/lib/ubuntu-gsi/gui/"
@@ -239,20 +208,17 @@ fi
 success "Halium scaffolding installed"
 echo ""
 
-# ---------------------------------------------------------------------------
-# Phase 7: chroot fingerprint — stamp /etc/ubuntu-gsi-release
-# ---------------------------------------------------------------------------
 info "Phase 7 — Stamping rootfs fingerprint"
-cat > "$TARGET_DIR/etc/ubuntu-gsi-release" <<EOF
-GSI_VARIANT=hidl
+cat > "$TARGET_DIR/etc/ubuntu-gsi-release" <<EOF3
+GSI_VARIANT=$VARIANT
 GSI_BUILD_DATE=$(date -Iseconds)
 GSI_UBUNTU_SUITE=$SUITE
 GSI_ARCH=$ARCH
 GSI_ARCH_MODEL=halium-inverse
-EOF
+EOF3
+
 success "Fingerprint written to /etc/ubuntu-gsi-release"
 echo ""
-
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}${BOLD}  ✔  Rootfs build complete: $TARGET_DIR${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
