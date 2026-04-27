@@ -8,6 +8,13 @@ A production-grade Ubuntu Touch distribution that runs natively on Treble-compli
 
 > Companion repository: [`Ubuntu_GSI`](https://github.com/zerofrip/Ubuntu_GSI) — the AIDL-only variant for Android 12+ vendors.
 
+## Reference Repositories
+
+The following repositories were referenced to improve device compatibility:
+
+- [device_phh_treble](https://github.com/phhusson/device_phh_treble)
+- [vendor_hardware_overlay](https://github.com/phhusson/vendor_hardware_overlay)
+
 ## Architecture
 
 ```
