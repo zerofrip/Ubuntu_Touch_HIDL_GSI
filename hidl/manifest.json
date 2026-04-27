@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "transport": "hidl",
+  "hal_modules": [
+    {
+      "name": "power",
+      "hidl_interface": "android.hardware.power@1.3::IPower",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/power/power_hal.sh",
+      "critical": true,
+      "start_delay": 0,
+      "description": "Power management — battery, charging, performance profiles (HIDL Power 1.3)"
+    },
+    {
+      "name": "audio",
+      "hidl_interface": "android.hardware.audio@7.0::IDevicesFactory",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/audio/audio_hal.sh",
+      "critical": false,
+      "start_delay": 1,
+      "description": "Audio routing via PulseAudio/PipeWire to vendor codec (HIDL Audio 7.0)"
+    },
+    {
+      "name": "camera",
+      "hidl_interface": "android.hardware.camera.provider@2.7::ICameraProvider",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/camera/camera_hal.sh",
+      "critical": false,
+      "start_delay": 1,
+      "description": "Camera access via libcamera to vendor camera HAL (HIDL Camera 2.7)"
+    },
+    {
+      "name": "sensors",
+      "hidl_interface": "android.hardware.sensors@2.1::ISensors",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/sensors/sensors_hal.sh",
+      "critical": false,
+      "start_delay": 0,
+      "description": "Sensor data via iio-sensor-proxy to vendor sensor HAL (HIDL Sensors 2.1)"
+    },
+    {
+      "name": "graphics",
+      "hidl_interface": "android.hardware.graphics.composer@2.4::IComposer",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/graphics/graphics_hal.sh",
+      "critical": true,
+      "start_delay": 0,
+      "description": "GPU/display via Mir compositor to vendor graphics (HIDL Composer 2.4)"
+    },
+    {
+      "name": "wifi",
+      "hidl_interface": "android.hardware.wifi@1.6::IWifi",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/wifi/wifi_hal.sh",
+      "critical": false,
+      "start_delay": 2,
+      "description": "WiFi via wpa_supplicant/NetworkManager to vendor WiFi driver (HIDL WiFi 1.6)"
+    },
+    {
+      "name": "telephony",
+      "hidl_interface": "android.hardware.radio@1.6::IRadio",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/telephony/telephony_hal.sh",
+      "critical": false,
+      "start_delay": 3,
+      "description": "Telephony/SIM via oFono/ModemManager to vendor radio HAL (HIDL Radio 1.6)"
+    },
+    {
+      "name": "input",
+      "hidl_interface": "ubuntu.gsi.input@1.0::IInputClassifier",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/input/input_hal.sh",
+      "critical": false,
+      "start_delay": 0,
+      "description": "Touchscreen/input classifier via libinput (HIDL has no input HAL — synthetic)"
+    },
+    {
+      "name": "gnss",
+      "hidl_interface": "android.hardware.gnss@2.1::IGnss",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/gnss/gnss_hal.sh",
+      "critical": false,
+      "start_delay": 3,
+      "description": "GNSS/GPS via gpsd/geoclue to vendor GNSS HAL (HIDL GNSS 2.1)"
+    },
+    {
+      "name": "bluetooth",
+      "hidl_interface": "android.hardware.bluetooth@1.1::IBluetoothHci",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/bluetooth/bluetooth_hal.sh",
+      "critical": false,
+      "start_delay": 2,
+      "description": "Bluetooth via BlueZ to vendor BT firmware (HIDL Bluetooth 1.1)"
+    },
+    {
+      "name": "vibrator",
+      "hidl_interface": "android.hardware.vibrator@1.3::IVibrator",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/vibrator/vibrator_hal.sh",
+      "critical": false,
+      "start_delay": 0,
+      "description": "Vibrator via sysfs timed_output/LED/FF input (HIDL Vibrator 1.3)"
+    },
+    {
+      "name": "fingerprint",
+      "hidl_interface": "android.hardware.biometrics.fingerprint@2.3::IBiometricsFingerprint",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/fingerprint/fingerprint_hal.sh",
+      "critical": false,
+      "start_delay": 2,
+      "description": "Fingerprint auth via fprintd/libfprint to vendor fingerprint HAL (HIDL Fingerprint 2.3)"
+    },
+    {
+      "name": "face",
+      "hidl_interface": "android.hardware.biometrics.face@1.0::IBiometricsFace",
+      "binary": "/usr/lib/ubuntu-gsi/hidl/face/face_hal.sh",
+      "critical": false,
+      "start_delay": 2,
+      "description": "Face auth via Howdy/IR camera to vendor face HAL (HIDL Face 1.0)"
+    }
+  ]
+}

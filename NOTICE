@@ -1,0 +1,287 @@
+================================================================================
+NOTICE file for Ubuntu Touch HIDL GSI
+================================================================================
+
+This project contains components from the Android Open Source Project (AOSP),
+which are licensed under the Apache License, Version 2.0.
+
+Per Section 4(d) of the Apache License 2.0, the following NOTICE information
+is provided for redistributed AOSP components.
+
+================================================================================
+Android Open Source Project — frameworks/native
+================================================================================
+
+Copyright (C) 2006 The Android Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Components used:
+  - libhidlbase / libhidltransport (HIDL runtime)
+  - libhwbinder (HwBinder IPC runtime)
+  - hwservicemanager (HIDL hwbinder service manager)
+  - libbinder (Binder IPC runtime — kept for legacy framework clients)
+  - servicemanager (Framework binder service manager)
+
+Source: https://android.googlesource.com/platform/frameworks/native
+Tag:    android-11.0.0_r48
+
+================================================================================
+Android Open Source Project — system/core
+================================================================================
+
+Copyright (C) 2006 The Android Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Components used:
+  - init (Android init process, minimal stub configuration)
+  - logd (Logging daemon)
+  - logcat (Log reader utility)
+  - libcutils, libutils, liblog (Core Android libraries)
+
+Source: https://android.googlesource.com/platform/system/core
+Tag:    android-11.0.0_r48
+
+================================================================================
+Android Open Source Project — system/sepolicy
+================================================================================
+
+Copyright (C) 2012 The Android Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Components used:
+  - Platform SELinux policy (type definitions, macros)
+  - service_contexts (Framework Binder service labeling)
+  - hwservice_contexts (HwBinder service labeling)
+  - vintf_object / hidl_*_hwservice macros
+
+Source: https://android.googlesource.com/platform/system/sepolicy
+Tag:    android-11.0.0_r48
+
+================================================================================
+LXC — Linux Containers
+================================================================================
+
+Copyright (C) 2011-2024 LXC contributors
+
+LXC is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the
+Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This project dynamically links against liblxc. Under the terms of the
+LGPL-2.1+, applications that dynamically link to LGPL-licensed libraries
+may be distributed under any license, provided the LGPL-licensed library
+source code is made available.
+
+Source: https://github.com/lxc/lxc
+Tag:    v6.0.6
+
+================================================================================
+libseccomp — Enhanced Seccomp (mode 2) Helper Library
+================================================================================
+
+Copyright (C) 2012-2024 Paul Moore <paul@paul-moore.com>
+Copyright (C) 2012-2024 Red Hat, Inc.
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+This project dynamically links against libseccomp. Under the terms of
+the LGPL-2.1, applications that dynamically link to LGPL-licensed
+libraries may be distributed under any license, provided the
+LGPL-licensed library source code is made available.
+
+Source: https://github.com/seccomp/libseccomp
+Tag:    v2.6.0
+
+================================================================================
+Lomiri Shell (Ubuntu Touch Desktop)
+================================================================================
+
+Copyright (C) 2013-2024 Canonical Ltd.
+Copyright (C) 2020-2024 UBports Foundation
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License.
+
+Includes the following components distributed under the same license:
+  - lomiri-system-settings
+  - lomiri-indicator-network
+  - lomiri-indicator-datetime
+  - lomiri-indicator-session
+  - lomiri-indicator-power
+
+Source: https://gitlab.com/ubports/development/core/lomiri
+Packages: https://repo.ubports.com/
+
+================================================================================
+Mir Display Server
+================================================================================
+
+Copyright (C) 2012-2024 Canonical Ltd.
+
+Mir is licensed under the GNU General Public License version 2 (GPLv2)
+and the GNU Lesser General Public License version 3 (LGPLv3).
+
+Components used:
+  - mir-graphics-drivers-desktop
+  - mir-platform-graphics-wayland
+
+Source: https://github.com/canonical/mir
+
+================================================================================
+oFono — Mobile Telephony Stack
+================================================================================
+
+Copyright (C) 2008-2024 Intel Corporation and others
+
+oFono is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License version 2 as published by
+the Free Software Foundation.
+
+Source: https://git.kernel.org/pub/scm/network/ofono/ofono.git
+
+================================================================================
+ModemManager — Mobile Broadband Modem Management
+================================================================================
+
+Copyright (C) 2008-2024 Aleksander Morgado and others
+
+ModemManager is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 as
+published by the Free Software Foundation.
+
+Source: https://gitlab.freedesktop.org/mobile-broadband/ModemManager
+
+================================================================================
+libqmi — QMI Protocol Library
+================================================================================
+
+Copyright (C) 2012-2024 Aleksander Morgado and others
+
+libqmi is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation; either version 2.1 of the License.
+
+Source: https://gitlab.freedesktop.org/mobile-broadband/libqmi
+
+================================================================================
+Onboard — On-screen Keyboard
+================================================================================
+
+Copyright (C) 2009-2024 marmuta <marmvta@gmail.com>
+Copyright (C) 2012-2024 Gerd Kohlberger <lowkeyed@gmail.com>
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 3 of the License.
+
+Source: https://launchpad.net/onboard
+
+================================================================================
+Zenity — Display Graphical Dialogs from Shell Scripts
+================================================================================
+
+Copyright (C) 2003-2024 GNOME Project
+
+Zenity is free software; you can redistribute it and/or modify it under
+the terms of the GNU Lesser General Public License as published by the
+Free Software Foundation; either version 2.1 of the License, or (at
+your option) any later version.
+
+Source: https://gitlab.gnome.org/GNOME/zenity
+
+================================================================================
+Fonts
+================================================================================
+
+Ubuntu Font Family
+  Copyright (C) 2010-2024 Canonical Ltd.
+  Licensed under the Ubuntu Font Licence, Version 1.0.
+  Source: https://design.ubuntu.com/font
+
+Noto Fonts
+  Copyright (C) 2012-2024 Google LLC
+  Licensed under the SIL Open Font License, Version 1.1.
+  Source: https://github.com/googlefonts/noto-fonts
+
+================================================================================
+Adwaita Icon Theme
+================================================================================
+
+Copyright (C) GNOME Project
+
+Licensed under the GNU Lesser General Public License v3 or later (LGPL-3.0+)
+and Creative Commons Attribution-ShareAlike 3.0 (CC-BY-SA-3.0).
+
+Source: https://gitlab.gnome.org/GNOME/adwaita-icon-theme
+
+================================================================================
+D-Bus X11 Integration (dbus-x11)
+================================================================================
+
+Copyright (C) 2002-2024 Red Hat, Inc. and others
+
+Licensed under the GNU General Public License version 2 or later (GPL-2.0+).
+A copy of the license is available at: https://www.gnu.org/licenses/gpl-2.0.html
+
+Source: https://www.freedesktop.org/wiki/Software/dbus/
+
+================================================================================
+Source Code Availability (GPL/LGPL Compliance)
+================================================================================
+
+This distribution includes binary packages licensed under the GNU General
+Public License (GPL) and the GNU Lesser General Public License (LGPL).
+In compliance with these licenses, the corresponding source code for all
+GPL/LGPL components can be obtained from the following locations:
+
+  Ubuntu archive:   https://packages.ubuntu.com/
+  UBports repo:     https://repo.ubports.com/
+  Launchpad:        https://launchpad.net/
+
+Alternatively, you may request a copy of the source code by contacting the
+project maintainers at the repository URL below. Source will be provided
+for a period of at least three years from the date of distribution.
+
+  Repository: https://github.com/zerofrip/Ubuntu_Touch_HIDL_GSI
+
+================================================================================
+End of NOTICE
+================================================================================

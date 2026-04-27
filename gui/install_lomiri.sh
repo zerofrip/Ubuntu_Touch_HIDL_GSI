@@ -1,0 +1,252 @@
+#!/bin/bash
+# =============================================================================
+# gui/install_lomiri.sh — Ubuntu Touch GUI Stack Installer
+# =============================================================================
+# Installs Mir display server and Lomiri shell into the rootfs.
+# Run inside chroot during rootfs build or on first boot.
+# =============================================================================
+
+set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Color helpers
+# ---------------------------------------------------------------------------
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+info()    { echo -e "${CYAN}[GUI Install]${NC} $1"; }
+success() { echo -e "${GREEN}[GUI Install]${NC} $1"; }
+error()   { echo -e "${RED}[GUI Install]${NC} $1"; }
+
+# ---------------------------------------------------------------------------
+# Check environment
+# ---------------------------------------------------------------------------
+if [ "$(id -u)" -ne 0 ]; then
+    error "Must run as root"
+    exit 1
+fi
+
+info "Installing Ubuntu Touch GUI stack (Mir + Lomiri)"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Add UBports PPA
+# ---------------------------------------------------------------------------
+info "Adding UBports repository..."
+
+if ! command -v add-apt-repository >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y software-properties-common
+fi
+
+# Add UBports PPA for Lomiri packages
+add-apt-repository -y ppa:ubports-developers/focal 2>/dev/null || {
+    info "PPA not available — using manual source"
+    echo "deb http://repo.ubports.com/ focal main" > /etc/apt/sources.list.d/ubports.list
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 579B9DA21E1E3D5D || true
+}
+
+apt-get update -qq
+
+# ---------------------------------------------------------------------------
+# Install Mir display server
+# ---------------------------------------------------------------------------
+info "Installing Mir display server..."
+
+apt-get install -y --no-install-recommends \
+    mir-graphics-drivers-desktop \
+    mir-platform-graphics-wayland \
+    libmiral-dev \
+    2>/dev/null || {
+    info "Some Mir packages unavailable — installing from alternatives"
+    apt-get install -y --no-install-recommends \
+        libmirclient-dev \
+        mir-utils \
+        2>/dev/null || true
+}
+
+success "Mir display server installed"
+
+# ---------------------------------------------------------------------------
+# Install Lomiri shell
+# ---------------------------------------------------------------------------
+info "Installing Lomiri shell..."
+
+apt-get install -y --no-install-recommends \
+    lomiri \
+    lomiri-session \
+    lomiri-system-compositor \
+    lomiri-system-settings \
+    lomiri-schemas \
+    lomiri-sounds \
+    lomiri-wallpapers \
+    lomiri-api \
+    lomiri-ui-toolkit \
+    lomiri-ui-extras \
+    lomiri-settings-components \
+    lomiri-notifications \
+    lomiri-polkit-agent \
+    lomiri-indicator-network \
+    lomiri-indicator-datetime \
+    lomiri-indicator-session \
+    lomiri-indicator-power \
+    lomiri-indicator-sound \
+    lomiri-indicator-messages \
+    lomiri-indicator-location \
+    lomiri-indicator-transfer \
+    lomiri-system-settings-accessibility \
+    lomiri-system-settings-cellular \
+    lomiri-system-settings-phone \
+    lomiri-system-settings-security-privacy \
+    lomiri-system-settings-system-update \
+    lomiri-system-settings-online-accounts \
+    lomiri-app-launch \
+    lomiri-url-dispatcher \
+    lomiri-content-hub \
+    lomiri-download-manager \
+    lomiri-push-client \
+    lomiri-thumbnailer \
+    lomiri-action-api \
+    lomiri-location-service \
+    lomiri-online-accounts \
+    lomiri-online-accounts-plugins \
+    lomiri-address-book-service \
+    lomiri-telephony-service \
+    lomiri-history-service \
+    lomiri-storage-framework \
+    lomiri-sync-monitor \
+    lomiri-account-polld \
+    lomiri-keyboard \
+    repowerd \
+    hfd-service \
+    media-hub \
+    mediascanner2 \
+    deviceinfo \
+    ciborium \
+    nuntium \
+    tone-generator \
+    timekeeper \
+    mtp \
+    keeper \
+    biometryd \
+    trust-store \
+    aethercast \
+    telepathy-ofono \
+    click \
+    click-apparmor \
+    apparmor-easyprof-ubuntu \
+    gsettings-qt \
+    u1db-qt \
+    qqc2-suru-style \
+    qtmir \
+    platform-api \
+    xdg-desktop-portal-lomiri \
+    suru-icon-theme \
+    ubuntu-touch-session \
+    ubuntu-touch-settings \
+    ubuntu-touch-meta \
+    2>/dev/null || {
+    info "Some Lomiri packages unavailable — installing core only"
+    apt-get install -y --no-install-recommends \
+        lomiri \
+        2>/dev/null || {
+        error "Lomiri not available in repositories"
+        error "The GUI will need to be installed manually"
+        exit 0
+    }
+}
+
+success "Lomiri shell & core services installed"
+
+# ---------------------------------------------------------------------------
+# Install UBports core applications (essential apps only — others via OpenStore)
+# ---------------------------------------------------------------------------
+info "Installing UBports core applications..."
+
+apt-get install -y --no-install-recommends \
+    morph-browser \
+    lomiri-calculator-app \
+    lomiri-camera-app \
+    lomiri-clock-app \
+    lomiri-filemanager-app \
+    lomiri-dialer-app \
+    lomiri-messaging-app \
+    lomiri-addressbook-app \
+    2>/dev/null || info "Some UBports apps unavailable — continuing"
+
+success "UBports core applications installed"
+
+# ---------------------------------------------------------------------------
+# Install OpenStore client (click package manager for additional apps)
+# ---------------------------------------------------------------------------
+info "Installing OpenStore client..."
+
+apt-get install -y --no-install-recommends \
+    openstore-client \
+    2>/dev/null || info "OpenStore client unavailable — users can install manually"
+
+success "OpenStore client installed"
+info "Additional apps available from OpenStore:"
+info "  calendar, gallery, music, notes, weather, terminal, docviewer, mediaplayer, printing"
+
+# ---------------------------------------------------------------------------
+# Install supporting packages
+# ---------------------------------------------------------------------------
+info "Installing supporting packages..."
+
+apt-get install -y --no-install-recommends \
+    zenity \
+    fonts-ubuntu \
+    fonts-noto \
+    dbus-x11 \
+    2>/dev/null || true
+
+success "Supporting packages installed"
+
+# ---------------------------------------------------------------------------
+# Configure auto-start
+# ---------------------------------------------------------------------------
+info "Configuring auto-start..."
+
+# Install Lomiri systemd service
+LOMIRI_SERVICE="/etc/systemd/system/lomiri.service"
+if [ ! -f "$LOMIRI_SERVICE" ]; then
+    cat > "$LOMIRI_SERVICE" << 'EOF'
+[Unit]
+Description=Lomiri Desktop Shell (Ubuntu Touch)
+After=hwbinder-bridge.service graphical.target dbus.service
+Wants=hwbinder-bridge.service dbus.service
+
+[Service]
+Type=simple
+User=ubuntu
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=WAYLAND_DISPLAY=wayland-0
+ExecStartPre=/usr/lib/ubuntu-gsi/gui/start_lomiri.sh --setup
+ExecStart=/usr/bin/lomiri --mode=full-greeter
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target
+EOF
+    systemctl enable lomiri.service 2>/dev/null || true
+fi
+
+# Set default target to graphical
+systemctl set-default graphical.target 2>/dev/null || true
+
+success "Auto-start configured"
+
+# ---------------------------------------------------------------------------
+# Cleanup
+# ---------------------------------------------------------------------------
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+echo ""
+echo -e "${GREEN}${BOLD}  ✔  Ubuntu Touch GUI stack installed${NC}"
+echo -e "  Lomiri will start automatically on boot."

@@ -1,0 +1,55 @@
+#!/bin/sh
+# =============================================================================
+# /init (Final Master Custom GNU/Linux Bootstrap)
+# =============================================================================
+
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+echo "[Master Init] Stage 1 - Base Virtual Filesystems..."
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+mount -t devpts devpts /dev/pts
+
+echo "[Master Init] Stage 2 - Android Ext4 Vendor Mounting..."
+mkdir -p /vendor
+mount -t ext4 -o ro /dev/block/bootdevice/by-name/vendor /vendor 2>/dev/null || \
+    mount -t ext4 -o ro /dev/block/mapper/vendor /vendor
+
+echo "[Master Init] Stage 3 - BinderFS IPC Activation..."
+mkdir -p /dev/binderfs
+mount -t binder binder /dev/binderfs
+ln -sf /dev/binderfs/binder /dev/binder
+ln -sf /dev/binderfs/vndbinder /dev/vndbinder
+ln -sf /dev/binderfs/hwbinder /dev/hwbinder
+chmod 0666 /dev/binder /dev/vndbinder /dev/hwbinder
+
+echo "[Master Init] Stage 4 - Active Hardware Discovery..."
+chmod +x /scripts/*.sh
+/scripts/detect-gpu.sh
+/scripts/detect-vendor-services.sh
+
+echo "[Master Init] Stage 4a - WiFi/Modem Radio Unblock..."
+# Unblock wireless radios early (before pivot) so drivers can initialize
+for rfkill_path in /sys/class/rfkill/rfkill*/type; do
+    [ -f "$rfkill_path" ] || continue
+    rfkill_dir=$(dirname "$rfkill_path")
+    rfkill_type=$(cat "$rfkill_path" 2>/dev/null)
+    case "$rfkill_type" in
+        wlan|wwan|bluetooth)
+            echo 0 > "$rfkill_dir/soft" 2>/dev/null || true
+            ;;
+    esac
+done
+
+# Set modem device permissions for later access
+for dev in /dev/cdc-wdm* /dev/ttyACM* /dev/ttyUSB* /dev/ttyMT* /dev/ccci_* /dev/eemcs_*; do
+    [ -e "$dev" ] && chmod 0660 "$dev" 2>/dev/null || true
+done
+
+echo "[Master Init] Stage 5 - Virtual HAL Framework Preparations..."
+mkdir -p /dev/uhl
+chmod 0755 /dev/uhl
+
+echo "[Master Init] Stage 6 - Handing Control to OverlayFS Pivot..."
+exec /init/mount.sh

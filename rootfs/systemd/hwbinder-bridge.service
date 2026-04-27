@@ -1,0 +1,27 @@
+[Unit]
+Description=Ubuntu GSI HwBinder Bridge — HIDL HAL Orchestrator
+Documentation=https://github.com/zerofrip/Ubuntu_Touch_HIDL_GSI
+After=local-fs.target
+Wants=local-fs.target
+ConditionPathExists=/dev/hwbinder
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/ubuntu-gsi/hwbinder/hwbinder-bridge.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+
+# Security hardening
+ProtectSystem=strict
+ReadWritePaths=/data /run/ubuntu-gsi /tmp
+NoNewPrivileges=false
+PrivateTmp=yes
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hwbinder-bridge
+
+[Install]
+WantedBy=multi-user.target

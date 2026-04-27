@@ -1,0 +1,260 @@
+# =============================================================================
+# rootfs/packages.list — Ubuntu Touch HIDL GSI Required Packages
+# =============================================================================
+# One package per line. Lines starting with # are comments.
+# These packages are installed into the rootfs during build.
+#
+# This list targets the HIDL-only sibling of Ubuntu_GSI. Packages that
+# matter specifically for HIDL HAL bridging (lshal helper, vendor
+# firmware loaders, libhidl runtime stubs from AOSP) are noted inline.
+# =============================================================================
+
+# Core system
+systemd
+systemd-sysv
+dbus
+udev
+sudo
+bash
+bash-completion
+locales
+ca-certificates
+
+# Networking
+network-manager
+iproute2
+iw
+wpasupplicant
+openssh-server
+crda
+wireless-regdb
+rfkill
+
+# VPN
+openvpn
+network-manager-openvpn
+wireguard-tools
+network-manager-vpnc
+
+# WiFi Tethering
+hostapd
+
+# Telephony / Modem
+ofono
+ofono-scripts
+modemmanager
+libqmi-utils
+libmbim-utils
+usb-modeswitch
+usb-modeswitch-data
+
+# Input / Touchscreen
+libinput10
+libinput-bin
+libinput-tools
+libevdev2
+libmtdev1
+evtest
+
+# HwBinder / HIDL / IPC support
+# Note: libhidlbase / libhwbinder / hwservicemanager / lshal are NOT in
+# Ubuntu repos. They are provided by the AOSP submodule under
+# third_party/aosp_frameworks_native and are vendored into the rootfs
+# at build time. libbinder-dev is kept only for legacy framework
+# binder use cases (e.g. InputFlinger compatibility shims).
+libbinder-dev
+
+# Audio
+pulseaudio
+pulseaudio-utils
+alsa-utils
+alsa-base
+libasound2
+libasound2-plugins
+
+# Sensors
+iio-sensor-proxy
+
+# Biometric authentication
+fprintd
+libpam-fprintd
+# howdy — installed from PPA or source (not in Ubuntu main repos)
+
+# GPS / GNSS
+gpsd
+gpsd-clients
+
+# Bluetooth
+bluez
+bluetooth
+pulseaudio-module-bluetooth
+
+# Camera
+libcamera0.3
+libcamera-tools
+libcamera-ipa
+gstreamer1.0-libcamera
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+v4l-utils
+# megapixels → lomiri-camera-app で代替
+
+# Power
+upower
+
+# Storage
+udisks2
+
+# USB OTG / Host mode
+usbutils
+usb-modeswitch
+
+# Web Browser (standalone)
+firefox
+
+# Utilities
+jq
+curl
+grim
+
+# GUI / Display
+mir-graphics-drivers-desktop
+mir-platform-graphics-wayland
+libdrm2
+libdrm-common
+libgbm1
+libegl1-mesa
+libgles2-mesa
+libgl1-mesa-dri
+mesa-utils
+libwayland-client0
+libwayland-server0
+
+# ---------------------------------------------------------------------------
+# UBports Core — Compositor & Shell
+# https://gitlab.com/ubports/development/core
+# ---------------------------------------------------------------------------
+lomiri
+lomiri-session
+lomiri-system-compositor
+lomiri-schemas
+lomiri-sounds
+lomiri-wallpapers
+lomiri-api
+lomiri-ui-toolkit
+lomiri-ui-extras
+lomiri-settings-components
+lomiri-notifications
+lomiri-polkit-agent
+
+# UBports Core — Indicators
+lomiri-indicator-network
+lomiri-indicator-datetime
+lomiri-indicator-session
+lomiri-indicator-power
+lomiri-indicator-sound
+lomiri-indicator-messages
+lomiri-indicator-location
+lomiri-indicator-transfer
+
+# UBports Core — System Settings panels
+lomiri-system-settings
+lomiri-system-settings-accessibility
+lomiri-system-settings-cellular
+lomiri-system-settings-phone
+lomiri-system-settings-security-privacy
+lomiri-system-settings-system-update
+lomiri-system-settings-online-accounts
+
+# UBports Core — Services & Daemons
+lomiri-app-launch
+lomiri-url-dispatcher
+lomiri-content-hub
+lomiri-download-manager
+lomiri-push-client
+lomiri-thumbnailer
+lomiri-action-api
+lomiri-location-service
+lomiri-online-accounts
+lomiri-online-accounts-plugins
+lomiri-address-book-service
+lomiri-telephony-service
+lomiri-history-service
+lomiri-storage-framework
+lomiri-sync-monitor
+lomiri-account-polld
+
+# UBports Core — Input
+lomiri-keyboard
+
+# UBports Core — Hardware services
+repowerd
+hfd-service
+media-hub
+mediascanner2
+deviceinfo
+ciborium
+nuntium
+tone-generator
+timekeeper
+mtp
+keeper
+biometryd
+trust-store
+aethercast
+
+# UBports Core — Telephony backend
+telepathy-ofono
+
+# UBports Core — Click packages & AppArmor
+click
+click-apparmor
+apparmor-easyprof-ubuntu
+
+# UBports Core — Qt integration
+gsettings-qt
+u1db-qt
+qqc2-suru-style
+qtmir
+platform-api
+xdg-desktop-portal-lomiri
+
+# UBports Core — Theming & artwork
+suru-icon-theme
+ubuntu-touch-session
+ubuntu-touch-settings
+ubuntu-touch-meta
+
+# ---------------------------------------------------------------------------
+# UBports Apps — Core Applications (essential, pre-installed as deb)
+# https://gitlab.com/ubports/development/apps
+# ---------------------------------------------------------------------------
+morph-browser
+lomiri-calculator-app
+lomiri-camera-app
+lomiri-clock-app
+lomiri-filemanager-app
+
+# UBports Core — Communication apps
+lomiri-dialer-app
+lomiri-messaging-app
+lomiri-addressbook-app
+
+# ---------------------------------------------------------------------------
+# OpenStore — Click package manager
+# Non-essential apps are installed from OpenStore at runtime:
+#   lomiri-calendar-app, lomiri-docviewer-app, lomiri-gallery-app,
+#   lomiri-music-app, lomiri-notes-app, lomiri-terminal-app,
+#   lomiri-weather-app, lomiri-mediaplayer-app, lomiri-printing-app
+# ---------------------------------------------------------------------------
+openstore-client
+
+# Setup wizard & fonts
+zenity
+fonts-ubuntu
+fonts-noto
+dbus-x11
+nano
+less
+htop
+e2fsprogs

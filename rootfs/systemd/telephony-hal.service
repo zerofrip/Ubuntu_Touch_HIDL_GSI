@@ -1,0 +1,30 @@
+[Unit]
+Description=Ubuntu GSI Telephony HAL — Vendor Radio/Modem HIDL Bridge
+Documentation=https://github.com/zerofrip/Ubuntu_Touch_HIDL_GSI
+After=hwbinder-bridge.service
+Wants=hwbinder-bridge.service
+Before=ofono.service ModemManager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/ubuntu-gsi/hidl/telephony/telephony_hal.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=90
+
+# Security hardening
+ProtectSystem=strict
+ReadWritePaths=/data /run/ubuntu-gsi /tmp /etc/ofono /etc/ModemManager /etc/NetworkManager /dev/socket
+NoNewPrivileges=false
+PrivateTmp=no
+
+# Modem device access
+SupplementaryGroups=dialout
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=telephony-hal
+
+[Install]
+WantedBy=multi-user.target

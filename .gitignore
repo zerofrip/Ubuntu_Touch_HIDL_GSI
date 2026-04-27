@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs
+out/
+ubuntu-gsi-arm64.img
+
+# ccache
+.ccache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+ubuntu-touch-rootfs.tar.gz
+builder/out/
+builder/out/userdata_staging/
+
+# Logs and QA reports
+*.log
+MASTER_QA_REPORT.*
+
