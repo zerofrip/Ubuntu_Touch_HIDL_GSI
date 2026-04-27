@@ -1,9 +1,17 @@
 #!/bin/bash
 # =============================================================================
-# scripts/build_rootfs.sh — Automated Ubuntu Rootfs Builder
+# scripts/build_rootfs.sh — Ubuntu chroot rootfs builder (Halium-style)
 # =============================================================================
-# Creates a minimal Ubuntu root filesystem using debootstrap, configures
-# apt repositories, installs required packages, and sets up systemd.
+# Builds the Ubuntu rootfs that lives inside the system.img at
+# `/system/usr/share/ubuntu-gsi/rootfs.erofs` and is `chroot`ed into by
+# `ubuntu-gsi-launcher` after Android boot completes.
+#
+# Differences from the legacy builder:
+#   • No /init script and no mount.sh — Android init is PID 1.
+#   • No HIDL/AIDL HAL wrapper shells — vendor HALs are reachable through
+#     /dev/binderfs natively.
+#   • Includes the libhybris/Mir/Lomiri stack (Halium dependencies).
+#   • Compat engine is sourced from halium/compat/ (single source of truth).
 #
 # Usage:
 #   sudo bash scripts/build_rootfs.sh
@@ -14,14 +22,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Source configuration
 CONFIG_FILE="$REPO_ROOT/config.env"
 if [ -f "$CONFIG_FILE" ]; then
     # shellcheck source=/dev/null
     source "$CONFIG_FILE"
 fi
 
-# Configuration
 TARGET_DIR="$REPO_ROOT/builder/out/ubuntu-rootfs"
 ARCH="${ARCH:-arm64}"
 SUITE="${UBUNTU_SUITE:-focal}"
@@ -29,6 +35,7 @@ MIRROR="${UBUNTU_MIRROR:-http://ports.ubuntu.com/ubuntu-ports}"
 PACKAGES_FILE="$REPO_ROOT/rootfs/packages.list"
 OVERLAY_DIR="$REPO_ROOT/rootfs/overlay"
 SYSTEMD_DIR="$REPO_ROOT/rootfs/systemd"
+HALIUM_DIR="$REPO_ROOT/halium"
 
 # ---------------------------------------------------------------------------
 # Color helpers
@@ -39,30 +46,29 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-info()    { echo -e "${CYAN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs Builder]${NC} $1"; }
-success() { echo -e "${GREEN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs Builder]${NC} $1"; }
-error()   { echo -e "${RED}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs Builder]${NC} $1"; }
+info()    { echo -e "${CYAN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
+success() { echo -e "${GREEN}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
+error()   { echo -e "${RED}[$(date -Iseconds)]${NC} ${BOLD}[Rootfs]${NC} $1"; }
 
 # ---------------------------------------------------------------------------
-# Root check
+# Pre-flight
 # ---------------------------------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
-    error "This script must be run as root (debootstrap requires it)"
-    echo "  Usage: sudo bash $0"
+    error "This script must be run as root (debootstrap requires it)."
+    error "  sudo bash $0"
     exit 1
 fi
 
-# Dependency check
 for cmd in debootstrap chroot; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
+    command -v "$cmd" >/dev/null 2>&1 || {
         error "$cmd not found — install: sudo apt install debootstrap"
         exit 1
-    fi
+    }
 done
 
 echo ""
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${BOLD}         Ubuntu GSI — Rootfs Builder                          ${NC}"
+echo -e "${BOLD}         Ubuntu GSI — Halium-style chroot rootfs builder      ${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 info "Architecture : $ARCH"
@@ -85,19 +91,17 @@ else
     case "$ARCH" in
         arm64) QEMU_ARCH="aarch64" ;;
         armhf) QEMU_ARCH="arm" ;;
-        *)     QEMU_ARCH="" ;;
     esac
 
     DEBOOTSTRAP_OPTS="--arch=$ARCH --variant=minbase"
-
     if [ -n "$QEMU_ARCH" ] && [ "$(uname -m)" != "$QEMU_ARCH" ]; then
-        info "Cross-architecture build: using qemu-$QEMU_ARCH-static"
+        info "Cross-architecture build via qemu-$QEMU_ARCH-static"
         DEBOOTSTRAP_OPTS="$DEBOOTSTRAP_OPTS --foreign"
     fi
 
+    # shellcheck disable=SC2086 # intentional word splitting on opts
     debootstrap $DEBOOTSTRAP_OPTS "$SUITE" "$TARGET_DIR" "$MIRROR"
 
-    # Complete foreign debootstrap if cross-building
     if echo "$DEBOOTSTRAP_OPTS" | grep -q "foreign"; then
         if [ -f "/usr/bin/qemu-${QEMU_ARCH}-static" ]; then
             cp "/usr/bin/qemu-${QEMU_ARCH}-static" "$TARGET_DIR/usr/bin/"
@@ -110,7 +114,7 @@ fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Phase 2: Configure apt sources
+# Phase 2: APT sources (Ubuntu + UBports for Lomiri)
 # ---------------------------------------------------------------------------
 info "Phase 2 — Configuring apt sources"
 
@@ -120,55 +124,41 @@ deb $MIRROR ${SUITE}-updates main restricted universe multiverse
 deb $MIRROR ${SUITE}-security main restricted universe multiverse
 EOF
 
-# Add UBports PPA for Lomiri / Ubuntu Touch packages
-info "Adding UBports PPA for Lomiri components"
-mkdir -p "$TARGET_DIR/etc/apt/sources.list.d"
-cat > "$TARGET_DIR/etc/apt/sources.list.d/ubports.list" << 'UBEOF'
+mkdir -p "$TARGET_DIR/etc/apt/sources.list.d" \
+         "$TARGET_DIR/etc/apt/trusted.gpg.d"
+cat > "$TARGET_DIR/etc/apt/sources.list.d/ubports.list" <<'UBEOF'
 deb http://repo.ubports.com/ focal main
 UBEOF
 
-# Import UBports GPG keys
-mkdir -p "$TARGET_DIR/etc/apt/trusted.gpg.d"
-
-# Key 1: UBports Apt Signing Key (from repo.ubports.com)
 if command -v wget >/dev/null 2>&1; then
     wget -qO "$TARGET_DIR/etc/apt/trusted.gpg.d/ubports-signing.gpg" \
-        "http://repo.ubports.com/pubkey.gpg" 2>/dev/null || \
-        info "WARNING: Could not fetch UBports signing key from repo"
+        "http://repo.ubports.com/pubkey.gpg" 2>/dev/null \
+        || info "WARNING: Could not fetch UBports signing key"
 fi
 
-# Key 2: UBports build key (from Ubuntu keyserver)
-if command -v gpg >/dev/null 2>&1; then
-    gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 4BD4B4D6DBB583F1 2>/dev/null && \
-    gpg --export 4BD4B4D6DBB583F1 > "$TARGET_DIR/etc/apt/trusted.gpg.d/ubports-build.gpg" 2>/dev/null || \
-        info "WARNING: Could not fetch UBports build key from keyserver"
-fi
-
-success "apt sources configured (including UBports PPA)"
+success "apt sources configured (Ubuntu + UBports)"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Phase 3: Install packages
+# Phase 3: Install packages (Linux base + Lomiri + libhybris)
 # ---------------------------------------------------------------------------
 info "Phase 3 — Installing packages"
 
-# Read package list (skip comments and empty lines)
 PACKAGES=""
 if [ -f "$PACKAGES_FILE" ]; then
     PACKAGES=$(grep -v '^#' "$PACKAGES_FILE" | grep -v '^$' | tr '\n' ' ')
-    info "Packages from $PACKAGES_FILE: $(echo "$PACKAGES" | wc -w) packages"
+    info "Packages from $PACKAGES_FILE: $(echo "$PACKAGES" | wc -w) entries"
 else
     info "No packages.list found — installing minimal set"
     PACKAGES="systemd systemd-sysv sudo bash-completion openssh-server"
 fi
 
-# Mount necessary filesystems for chroot
-mount --bind /dev "$TARGET_DIR/dev" || true
+mount --bind /dev     "$TARGET_DIR/dev"     || true
 mount --bind /dev/pts "$TARGET_DIR/dev/pts" || true
-mount -t proc proc "$TARGET_DIR/proc" || true
-mount -t sysfs sysfs "$TARGET_DIR/sys" || true
+mount -t proc  proc   "$TARGET_DIR/proc"    || true
+mount -t sysfs sysfs  "$TARGET_DIR/sys"     || true
 
-# Update and install packages
+# shellcheck disable=SC2086 # intentional word splitting on PACKAGES
 chroot "$TARGET_DIR" bash -c "
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
@@ -177,101 +167,94 @@ chroot "$TARGET_DIR" bash -c "
     rm -rf /var/lib/apt/lists/*
 "
 
-# Unmount
-umount "$TARGET_DIR/sys" 2>/dev/null || true
-umount "$TARGET_DIR/proc" 2>/dev/null || true
+umount "$TARGET_DIR/sys"     2>/dev/null || true
+umount "$TARGET_DIR/proc"    2>/dev/null || true
 umount "$TARGET_DIR/dev/pts" 2>/dev/null || true
-umount "$TARGET_DIR/dev" 2>/dev/null || true
+umount "$TARGET_DIR/dev"     2>/dev/null || true
 
 success "Packages installed"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Phase 4: Apply overlay files
+# Phase 4: Apply overlay files (rootfs/overlay)
 # ---------------------------------------------------------------------------
 info "Phase 4 — Applying overlay"
-
 if [ -d "$OVERLAY_DIR" ]; then
     cp -a "$OVERLAY_DIR"/. "$TARGET_DIR/"
-    success "Overlay applied from $OVERLAY_DIR"
-else
-    info "No overlay directory found — skipping"
-fi
-
-# ---------------------------------------------------------------------------
-# Phase 5: Install systemd units
-# ---------------------------------------------------------------------------
-info "Phase 5 — Installing systemd units"
-
-if [ -d "$SYSTEMD_DIR" ]; then
-    mkdir -p "$TARGET_DIR/etc/systemd/system"
-    cp "$SYSTEMD_DIR"/*.service "$TARGET_DIR/etc/systemd/system/" 2>/dev/null || true
-    cp "$SYSTEMD_DIR"/*.timer "$TARGET_DIR/etc/systemd/system/" 2>/dev/null || true
-
-    # Enable services
-    for service in hwbinder-bridge ubuntu-gsi-compat lomiri ubuntu-gsi-firstboot ubuntu-gsi-setup-wizard usb-gadget; do
-        if [ -f "$TARGET_DIR/etc/systemd/system/${service}.service" ]; then
-            chroot "$TARGET_DIR" systemctl enable "${service}.service" 2>/dev/null || true
-            info "Enabled: ${service}.service"
-        fi
-    done
-
-    success "Systemd units installed"
-else
-    info "No systemd directory found — skipping"
+    success "Overlay applied"
 fi
 echo ""
 
 # ---------------------------------------------------------------------------
-# Phase 6: Install Ubuntu GSI components
+# Phase 5: Install systemd units (only the surviving ones)
 # ---------------------------------------------------------------------------
-info "Phase 6 — Installing Ubuntu GSI components"
+info "Phase 5 — Installing systemd units"
+if [ -d "$SYSTEMD_DIR" ]; then
+    mkdir -p "$TARGET_DIR/etc/systemd/system"
+    cp "$SYSTEMD_DIR"/*.service "$TARGET_DIR/etc/systemd/system/" 2>/dev/null || true
+    cp "$SYSTEMD_DIR"/*.timer   "$TARGET_DIR/etc/systemd/system/" 2>/dev/null || true
 
-# Install HIDL HAL layer
-if [ -d "$REPO_ROOT/hidl" ]; then
-    mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/hidl"
-    cp -r "$REPO_ROOT/hidl/"* "$TARGET_DIR/usr/lib/ubuntu-gsi/hidl/"
-    find "$TARGET_DIR/usr/lib/ubuntu-gsi/hidl" -type f -name '*.sh' \
-        -exec chmod +x {} \;
-    info "HIDL HAL layer installed"
+    for svc in lomiri ubuntu-gsi-firstboot ubuntu-gsi-setup-wizard ubuntu-gsi-compat usb-gadget; do
+        if [ -f "$TARGET_DIR/etc/systemd/system/${svc}.service" ]; then
+            chroot "$TARGET_DIR" systemctl enable "${svc}.service" 2>/dev/null \
+                && info "Enabled: ${svc}.service" \
+                || info "WARNING: could not enable ${svc}.service"
+        fi
+    done
+    success "Systemd units installed"
 fi
+echo ""
 
-# Install hwbinder bridge
-if [ -d "$REPO_ROOT/hwbinder" ]; then
-    mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/hwbinder"
-    cp -r "$REPO_ROOT/hwbinder/"* "$TARGET_DIR/usr/lib/ubuntu-gsi/hwbinder/"
-    chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/hwbinder/"*.sh
-    info "HwBinder bridge installed"
-fi
+# ---------------------------------------------------------------------------
+# Phase 6: Halium scaffolding (compat layer + Lomiri launcher inside chroot)
+# ---------------------------------------------------------------------------
+info "Phase 6 — Installing Halium scaffolding inside the chroot"
 
-# Install GUI launcher
+# 6a. compat layer
+mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/compat"
+cp -a "$HALIUM_DIR/compat/." "$TARGET_DIR/usr/lib/ubuntu-gsi/compat/"
+find "$TARGET_DIR/usr/lib/ubuntu-gsi/compat" -type f -name '*.sh' -exec chmod 0755 {} \;
+info "compat layer installed at /usr/lib/ubuntu-gsi/compat"
+
+# 6b. Lomiri launcher (also lives in /system, but available inside the chroot
+#     so SSH users can poke at it directly).
+mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/halium"
+install -m 0755 "$HALIUM_DIR/lomiri/start-lomiri.sh" \
+    "$TARGET_DIR/usr/lib/ubuntu-gsi/halium/start-lomiri.sh"
+info "start-lomiri.sh installed at /usr/lib/ubuntu-gsi/halium/"
+
+# 6c. firstboot/setup wizard already shipped via overlay; ensure exec bit.
+for f in firstboot.sh setup-wizard.sh usb-gadget.sh; do
+    [ -f "$TARGET_DIR/usr/lib/ubuntu-gsi/$f" ] && \
+        chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/$f"
+done
+
+# 6d. GUI install hook (legacy, kept for manual chroot use)
 if [ -d "$REPO_ROOT/gui" ]; then
     mkdir -p "$TARGET_DIR/usr/lib/ubuntu-gsi/gui"
     cp -r "$REPO_ROOT/gui/"* "$TARGET_DIR/usr/lib/ubuntu-gsi/gui/"
     chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/gui/"*.sh 2>/dev/null || true
-    info "GUI components installed"
 fi
 
-# Firstboot script
-if [ -f "$TARGET_DIR/usr/lib/ubuntu-gsi/firstboot.sh" ]; then
-    chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/firstboot.sh"
-fi
+success "Halium scaffolding installed"
+echo ""
 
-# Setup wizard script
-if [ -f "$TARGET_DIR/usr/lib/ubuntu-gsi/setup-wizard.sh" ]; then
-    chmod +x "$TARGET_DIR/usr/lib/ubuntu-gsi/setup-wizard.sh"
-fi
-
-# PHH/TrebleDroid-style compat layer (quirks.json + compat-engine.sh)
-if [ -d "$TARGET_DIR/usr/lib/ubuntu-gsi/compat" ]; then
-    find "$TARGET_DIR/usr/lib/ubuntu-gsi/compat" -type f -name '*.sh' \
-        -exec chmod +x {} \;
-    info "Compatibility engine installed (PHH/TrebleDroid-style quirk DB)"
-fi
-
-success "Ubuntu GSI components installed"
+# ---------------------------------------------------------------------------
+# Phase 7: chroot fingerprint — stamp /etc/ubuntu-gsi-release
+# ---------------------------------------------------------------------------
+info "Phase 7 — Stamping rootfs fingerprint"
+cat > "$TARGET_DIR/etc/ubuntu-gsi-release" <<EOF
+GSI_VARIANT=hidl
+GSI_BUILD_DATE=$(date -Iseconds)
+GSI_UBUNTU_SUITE=$SUITE
+GSI_ARCH=$ARCH
+GSI_ARCH_MODEL=halium-inverse
+EOF
+success "Fingerprint written to /etc/ubuntu-gsi-release"
 echo ""
 
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}${BOLD}  ✔  Rootfs build complete: $TARGET_DIR${NC}"
 echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "  Next: bash scripts/build_rootfs_erofs.sh"
