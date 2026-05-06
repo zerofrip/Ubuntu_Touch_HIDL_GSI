@@ -146,11 +146,11 @@ prune_to_android_minimal() {
 
     # Remove static payloads that are not required for Android core boot.
     rm -rf \
-        "$STAGING/media" \
-        "$STAGING/preload" \
-        "$STAGING/demo" \
-        "$STAGING/usr/hyphen-data" \
-        "$STAGING/usr/icu"
+        "${STAGING:?}/media" \
+        "${STAGING:?}/preload" \
+        "${STAGING:?}/demo" \
+        "${STAGING:?}/usr/hyphen-data" \
+        "${STAGING:?}/usr/icu"
 
     # Keep only core framework-facing apps + launcher set.
     for app_root in \
