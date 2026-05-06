@@ -41,6 +41,10 @@ PHH_MNT="$OUT_DIR/.phh-mount"
 SYSTEM_IMG_SIZE_MB="${SYSTEM_IMG_SIZE_MB:-0}"
 SYSTEM_IMG_HEADROOM_MB="${SYSTEM_IMG_HEADROOM_MB:-96}"
 SYSTEM_IMG_MIN_MB="${SYSTEM_IMG_MIN_MB:-768}"
+SYSTEM_IMG_GROWTH_STEP_MB="${SYSTEM_IMG_GROWTH_STEP_MB:-256}"
+SYSTEM_IMG_MAX_RETRIES="${SYSTEM_IMG_MAX_RETRIES:-4}"
+ROOTFS_SEED_IN_SYSTEM="${ROOTFS_SEED_IN_SYSTEM:-0}"
+SYSTEM_LAYOUT_PROFILE="${SYSTEM_LAYOUT_PROFILE:-android-minimal}"
 
 mkdir -p "$OUT_DIR"
 
@@ -120,6 +124,62 @@ fi
 success "PHH base extracted ($(du -sh "$STAGING" | cut -f1))"
 
 # ---------------------------------------------------------------------------
+# Stage 1.5: prune PHH payload for android-minimal layout
+# ---------------------------------------------------------------------------
+prune_app_tree() {
+    local app_root="$1"
+    [ -d "$app_root" ] || return 0
+
+    local keep_regex='(Launcher|QuickStep|Trebuchet|Lawnchair|Home|SystemUI|PermissionController|PackageInstaller|Settings|SetupWizard|Provision|NetworkStack|CaptivePortalLogin|ExtServices|ExtShared|TeleService|MmsService|InputDevices|LatinIME|CellBroadcast|OsuLogin|VpnDialogs|PrintSpooler|ProxyHandler|ManagedProvisioning|Traceur|Shell|Tag|Statsd)'
+
+    while IFS= read -r app_dir; do
+        local name
+        name="$(basename "$app_dir")"
+        if [[ ! "$name" =~ $keep_regex ]]; then
+            rm -rf "$app_dir"
+        fi
+    done < <(find "$app_root" -mindepth 1 -maxdepth 1 -type d)
+}
+
+prune_to_android_minimal() {
+    info "Applying android-minimal system layout profile"
+
+    # Remove static payloads that are not required for Android core boot.
+    rm -rf \
+        "$STAGING/media" \
+        "$STAGING/preload" \
+        "$STAGING/demo" \
+        "$STAGING/usr/hyphen-data" \
+        "$STAGING/usr/icu"
+
+    # Keep only core framework-facing apps + launcher set.
+    for app_root in \
+        "$STAGING/app" \
+        "$STAGING/priv-app" \
+        "$STAGING/product/app" \
+        "$STAGING/product/priv-app" \
+        "$STAGING/system_ext/app" \
+        "$STAGING/system_ext/priv-app"; do
+        prune_app_tree "$app_root"
+    done
+
+    # Remove empty directories created by app pruning.
+    find "$STAGING" -type d -empty -delete || true
+}
+
+case "$SYSTEM_LAYOUT_PROFILE" in
+    android-minimal)
+        prune_to_android_minimal
+        ;;
+    full)
+        info "Keeping full PHH system layout (SYSTEM_LAYOUT_PROFILE=full)"
+        ;;
+    *)
+        warn "Unknown SYSTEM_LAYOUT_PROFILE=$SYSTEM_LAYOUT_PROFILE; keeping full PHH layout"
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
 # Stage 2: overlay halium additions
 # ---------------------------------------------------------------------------
 info "Overlaying Halium scaffolding"
@@ -138,9 +198,20 @@ mkdir -p "$STAGING/usr/lib/ubuntu-gsi/compat"
 cp -a "$HALIUM_DIR/compat/." "$STAGING/usr/lib/ubuntu-gsi/compat/"
 find "$STAGING/usr/lib/ubuntu-gsi/compat" -type f -name '*.sh' -exec chmod 0755 {} \;
 
-# Linux rootfs erofs
+# Linux rootfs erofs seed for userdata self-heal (optional for size saving)
 mkdir -p "$STAGING/usr/share/ubuntu-gsi"
-cp -a "$EROFS_IMG" "$STAGING/usr/share/ubuntu-gsi/rootfs.erofs"
+if [ "$ROOTFS_SEED_IN_SYSTEM" = "1" ]; then
+    cp -a "$EROFS_IMG" "$STAGING/usr/share/ubuntu-gsi/rootfs.erofs"
+    if command -v sha256sum >/dev/null 2>&1; then
+        (
+            cd "$STAGING/usr/share/ubuntu-gsi"
+            sha256sum rootfs.erofs > rootfs.erofs.sha256
+        )
+    fi
+    info "Bundled rootfs seed in system image"
+else
+    info "Skipping rootfs seed in system image (ROOTFS_SEED_IN_SYSTEM=0)"
+fi
 
 # Lomiri launch helper (also linked from the Linux rootfs)
 mkdir -p "$STAGING/usr/share/ubuntu-gsi/halium-lomiri"
@@ -162,11 +233,28 @@ if [ "$SYSTEM_IMG_SIZE_MB" -eq 0 ]; then
 fi
 
 rm -f "$OUT_IMG"
-info "Allocating ${SYSTEM_IMG_SIZE_MB}MB ext4 at $OUT_IMG"
-truncate -s "${SYSTEM_IMG_SIZE_MB}M" "$OUT_IMG"
+mkfs_log="$(mktemp)"
+for attempt in $(seq 1 "$SYSTEM_IMG_MAX_RETRIES"); do
+    rm -f "$OUT_IMG"
+    info "Allocating ${SYSTEM_IMG_SIZE_MB}MB ext4 at $OUT_IMG (attempt $attempt/$SYSTEM_IMG_MAX_RETRIES)"
+    truncate -s "${SYSTEM_IMG_SIZE_MB}M" "$OUT_IMG"
 
-info "Formatting ext4 with content from $STAGING"
-mkfs.ext4 -L system -O ^metadata_csum -d "$STAGING" "$OUT_IMG"
+    info "Formatting ext4 with content from $STAGING"
+    if mkfs.ext4 -L system -O ^metadata_csum -d "$STAGING" "$OUT_IMG" 2>"$mkfs_log"; then
+        rm -f "$mkfs_log"
+        break
+    fi
+
+    if [ "$attempt" -ge "$SYSTEM_IMG_MAX_RETRIES" ]; then
+        cat "$mkfs_log" >&2
+        rm -f "$mkfs_log"
+        error "mkfs.ext4 failed after ${SYSTEM_IMG_MAX_RETRIES} attempts."
+        exit 1
+    fi
+
+    warn "mkfs.ext4 failed at ${SYSTEM_IMG_SIZE_MB}MB; increasing size by ${SYSTEM_IMG_GROWTH_STEP_MB}MB and retrying."
+    SYSTEM_IMG_SIZE_MB=$(( SYSTEM_IMG_SIZE_MB + SYSTEM_IMG_GROWTH_STEP_MB ))
+done
 
 # Shrink filesystem to the minimum possible size so release uploads stay small.
 info "Minimizing ext4 filesystem footprint"

@@ -6,6 +6,8 @@ __pycache__/
 # Build outputs
 out/
 ubuntu-gsi-arm64.img
+# PHH GSI base image (fetched by scripts; do not commit)
+builder/cache/phh-gsi.img
 
 # ccache
 .ccache/

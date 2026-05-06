@@ -8,6 +8,7 @@
 #   3. Pack rootfs as erofs
 #   4. Build disabled vbmeta image
 #   5. Compose final system.img (PHH base + halium overlay + rootfs.erofs)
+#   6. Build userdata.img (rootfs A/B seed + overlay dirs)
 # =============================================================================
 
 set -e
@@ -61,11 +62,21 @@ fi
 echo ""
 
 info "Phase 3 — Packing rootfs as erofs"
-bash "$SCRIPT_DIR/scripts/build_rootfs_erofs.sh"
+if [ "$(id -u)" -ne 0 ]; then
+    info "  (re-invoking with sudo for root-owned rootfs)"
+    sudo bash "$SCRIPT_DIR/scripts/build_rootfs_erofs.sh"
+else
+    bash "$SCRIPT_DIR/scripts/build_rootfs_erofs.sh"
+fi
 echo ""
 
 info "Phase 4 — Generating vbmeta-disabled.img"
-bash "$SCRIPT_DIR/scripts/build_vbmeta_disabled.sh"
+if [ "$(id -u)" -ne 0 ]; then
+    info "  (re-invoking with sudo for root-owned output dir)"
+    sudo bash "$SCRIPT_DIR/scripts/build_vbmeta_disabled.sh"
+else
+    bash "$SCRIPT_DIR/scripts/build_vbmeta_disabled.sh"
+fi
 echo ""
 
 info "Phase 5 — Composing system.img"
@@ -74,6 +85,15 @@ if [ "$(id -u)" -ne 0 ]; then
     sudo bash "$SCRIPT_DIR/scripts/build_system_img.sh"
 else
     bash "$SCRIPT_DIR/scripts/build_system_img.sh"
+fi
+echo ""
+
+info "Phase 6 — Building userdata.img"
+if [ "$(id -u)" -ne 0 ]; then
+    info "  (re-invoking with sudo for root-owned output dir)"
+    sudo bash "$SCRIPT_DIR/scripts/build_userdata_img.sh"
+else
+    bash "$SCRIPT_DIR/scripts/build_userdata_img.sh"
 fi
 echo ""
 
@@ -88,7 +108,7 @@ echo -e "${BOLD}═════════════════════�
 echo ""
 
 OUT="$WORKSPACE_DIR/builder/out"
-for f in system.img vbmeta-disabled.img linux_rootfs.erofs; do
+for f in system.img vbmeta-disabled.img linux_rootfs.erofs userdata.img; do
     if [ -f "$OUT/$f" ]; then
         SZ=$(du -h "$OUT/$f" | cut -f1)
         echo -e "  ${CYAN}$(printf '%-22s' "$f")${NC}: $SZ"

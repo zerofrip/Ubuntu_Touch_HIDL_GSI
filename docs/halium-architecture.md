@@ -81,7 +81,7 @@ sequenceDiagram
 
 | Path | Origin | Purpose |
 |------|--------|---------|
-| `/system/bin/init`, `/system/etc/init/*.rc`, `/system/lib*/`, `/system/apex/`, `/system/framework/` | **PHH Treble GSI v412 (Android 11)** | Provides a fully working Android base because the device's vendor partition is HIDL/Android-11-era. |
+| `/system/bin/init`, `/system/etc/init/*.rc`, `/system/lib*/`, `/system/apex/`, `/system/framework/` | **PHH Treble GSI v416 (Android 11)** | Provides a fully working Android base because the device's vendor partition is HIDL/Android-11-era. |
 | `/system/etc/init/ubuntu-gsi.rc` | **This repo** | Late-boot `service` that launches `ubuntu-gsi-launcher`. |
 | `/system/bin/ubuntu-gsi-launcher` | **This repo** | Shell driver that performs the chroot pivot. |
 | `/system/bin/ubuntu-gsi-stop-android-ui` | **This repo** | Stops `surfaceflinger`, `bootanim`, `audioserver` cleanly so the Linux compositor can take over. |
