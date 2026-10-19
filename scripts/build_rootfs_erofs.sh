@@ -61,6 +61,12 @@ fi
 # ---------------------------------------------------------------------------
 # Pack
 # ---------------------------------------------------------------------------
+if [ -e "$OUT_IMG" ] && [ ! -w "$OUT_IMG" ]; then
+    error "Cannot overwrite $OUT_IMG (owned by $(stat -c '%U:%G' "$OUT_IMG" 2>/dev/null || echo unknown))"
+    error "  Fix: sudo chown \"\$USER:\$USER\" \"$OUT_IMG\""
+    error "   or: sudo rm -f \"$OUT_IMG\""
+    exit 1
+fi
 rm -f "$OUT_IMG"
 ROOTFS_BYTES=$(du -sb "$ROOTFS_DIR" | cut -f1)
 ROOTFS_MB=$(( ROOTFS_BYTES / 1024 / 1024 ))
@@ -75,3 +81,4 @@ OUT_MB=$(( OUT_BYTES / 1024 / 1024 ))
 RATIO=$(( OUT_BYTES * 100 / ROOTFS_BYTES ))
 
 success "linux_rootfs.erofs built: $OUT_IMG ($OUT_MB MB, $RATIO% of source)"
+
