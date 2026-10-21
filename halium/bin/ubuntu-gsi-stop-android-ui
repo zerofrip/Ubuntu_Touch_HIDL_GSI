@@ -14,7 +14,7 @@ set -eu
 
 LOG_TAG="ubuntu-gsi-stop-android-ui"
 log() {
-    log -t "$LOG_TAG" "$*" 2>/dev/null || true
+    /system/bin/log -t "$LOG_TAG" "$*" 2>/dev/null || true
     echo "[$LOG_TAG] $*" 1>&2
 }
 
