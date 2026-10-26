@@ -30,6 +30,8 @@ fi
 
 CACHE_DIR="$REPO_ROOT/builder/cache"
 PHH_IMG="$CACHE_DIR/phh-gsi.img"
+PHH_RAW="$CACHE_DIR/phh-gsi.raw.img"
+PHH_MOUNT_IMG="$PHH_IMG"
 EROFS_IMG="$REPO_ROOT/builder/out/linux_rootfs.erofs"
 HALIUM_DIR="$REPO_ROOT/halium"
 
@@ -68,6 +70,7 @@ cleanup() {
         umount "$PHH_MNT" || true
     fi
     rmdir "$PHH_MNT" 2>/dev/null || true
+    rm -f "$PHH_RAW.tmp" "$PHH_RAW" || true
 }
 trap cleanup EXIT
 
@@ -99,6 +102,21 @@ for cmd in mkfs.ext4 e2fsck resize2fs dumpe2fs mount tune2fs; do
     }
 done
 
+# A sparse GSI cannot be loop-mounted directly. The fetcher's own detection is
+# unreliable, so a cached image may still be sparse — convert a copy to raw.
+magic="$(od -An -tx1 -N4 "$PHH_IMG" | tr -d ' \n')"
+if [ "$magic" = "3aff26ed" ]; then
+    info "Sparse image detected — converting to raw with simg2img"
+    command -v simg2img >/dev/null 2>&1 || {
+        error "simg2img not found — install android-sdk-libsparse-utils"
+        exit 1
+    }
+    # Write-then-rename so an aborted conversion never looks like a valid raw file.
+    simg2img "$PHH_IMG" "$PHH_RAW.tmp"
+    mv "$PHH_RAW.tmp" "$PHH_RAW"
+    PHH_MOUNT_IMG="$PHH_RAW"
+fi
+
 # ---------------------------------------------------------------------------
 # Stage 1: extract PHH base
 # ---------------------------------------------------------------------------
@@ -106,10 +124,11 @@ info "Staging PHH GSI base into $STAGING"
 rm -rf "$STAGING"
 mkdir -p "$STAGING" "$PHH_MNT"
 
-mount -o ro,loop "$PHH_IMG" "$PHH_MNT"
+mount -o ro,loop "$PHH_MOUNT_IMG" "$PHH_MNT"
 cp -a "$PHH_MNT/." "$STAGING/"
 umount "$PHH_MNT"
 rmdir "$PHH_MNT"
+rm -f "$PHH_RAW"
 
 # Some PHH GSIs are mounted at /system/ inside the loop; others put files at
 # the root. Detect and normalise.
