@@ -32,11 +32,8 @@ declare -A PHH_VERSION_MAP=(
     [9]="v123"
     [10]="v222"
     [11]="v313"
-    [12]="v416"
-    [13]="ci-20230905"
-    [14]="ci-20240508"
-    [15]="ci-20250415"
-    [16]="ci-20250617"
+    [12.0]="v402"
+    [12.1]="v416"
 )
 
 declare -A PHH_REPO_MAP=(
@@ -44,11 +41,8 @@ declare -A PHH_REPO_MAP=(
     [9]="phhusson/treble_experimentations"
     [10]="phhusson/treble_experimentations"
     [11]="phhusson/treble_experimentations"
-    [12]="phhusson/treble_experimentations"
-    [13]="TrebleDroid/treble_experimentations"
-    [14]="TrebleDroid/treble_experimentations"
-    [15]="TrebleDroid/treble_experimentations"
-    [16]="TrebleDroid/treble_experimentations"
+    [12.0]="phhusson/treble_experimentations"
+    [12.1]="phhusson/treble_experimentations"
 )
 
 declare -A PHH_VARIANT_MAP=(
@@ -56,11 +50,8 @@ declare -A PHH_VARIANT_MAP=(
     [9]="arm64-ab-vanilla-nosu"
     [10]="quack-arm64-ab-vanilla"
     [11]="roar-arm64-ab-vanilla"
-    [12]="squeak-arm64-ab-vanilla"
-    [13]="td-arm64-ab-vanilla"
-    [14]="td-arm64-ab-vanilla"CD
-    [15]="td-arm64-ab-vanilla"
-    [16]="td-arm64-vanilla"
+    [12.0]="squeak-arm64-ab-vanilla"
+    [12.1]="squeak-arm64-ab-vanilla"
 )
 
 declare -A DEVICE_PHH_BRANCH_MAP=(
@@ -68,11 +59,8 @@ declare -A DEVICE_PHH_BRANCH_MAP=(
     [9]="android-9.0"
     [10]="android-10.0"
     [11]="android-11.0"
-    [12]="android-12.0"
-    [13]="android-13.0"
-    [14]="android-14.0"
-    [15]="android-15.0"
-    [16]="android-16.0"
+    [12.0]="android-12.0"
+    [12.1]="android-12.1"
 )
 
 sync_device_phh_branch() {
@@ -105,7 +93,7 @@ sync_device_phh_branch() {
     )
 }
 
-for version in 8 9 10 11 12 13 14 15 16; do
+for version in 8 9 10 11 12.0 12.1; do
     phh_version="${PHH_VERSION_MAP[$version]}"
     phh_repo="${PHH_REPO_MAP[$version]}"
     phh_variant="${PHH_VARIANT_MAP[$version]}"
@@ -113,7 +101,10 @@ for version in 8 9 10 11 12 13 14 15 16; do
 
     sync_device_phh_branch "$device_phh_branch"
 
-    cmd="PHH_GSI_SOURCE=release PHH_GSI_REPO=$phh_repo PHH_GSI_VERSION=$phh_version PHH_GSI_VARIANT=$phh_variant make $BUILD_TARGET"
+    # VENDOR_ANDROID_VERSION pins config.env's load_vendor_config.sh to the
+    # matching vendor/*.env file so it doesn't conflict with the inline
+    # PHH_GSI_* overrides below (both resolve to the same values).
+    cmd="VENDOR_ANDROID_VERSION=$device_phh_branch PHH_GSI_SOURCE=release PHH_GSI_REPO=$phh_repo PHH_GSI_VERSION=$phh_version PHH_GSI_VARIANT=$phh_variant make $BUILD_TARGET"
     echo "[HIDL matrix] Android ${version} -> $cmd"
     if [ "$DRY_RUN" = "0" ]; then
         (cd "$REPO_ROOT" && eval "$cmd")

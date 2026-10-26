@@ -30,7 +30,8 @@ fastboot flash system builder/out/system.img
 fastboot reboot
 ```
 
-Do **not** flash `boot`, `vendor_boot`, `dtbo`, `vendor`, or `userdata`.
+Do **not** flash `boot`, `vendor_boot`, `dtbo`, or `vendor`. `userdata` is
+opt-in (see below).
 
 ## 4) Runtime toggle
 
@@ -82,4 +83,37 @@ Check the dry-run output: packages matching `linux-image*`, `linux-headers*`,
 `u-boot*`, `shim*`, or `systemd-boot` must **not** appear in the list of
 packages to be installed or upgraded. If any do appear, the pin file is
 missing or was overridden; do not proceed with the upgrade.
+
+### When userdata is (not) flashed
+
+| Situation | userdata |
+|-----------|----------|
+| Normal first-time flash | Not flashed (self-seeded from `system.img` on first boot) |
+| Corrupted `/data/ubuntu-gsi` you want to rebuild without self-heal | Optional (`--with-userdata`) |
+| Build with `ROOTFS_SEED_IN_SYSTEM=0` (smaller `system.img`) | Required (`--with-userdata`) |
+
+```bash
+bash scripts/flash.sh                  # default — no userdata
+bash scripts/flash.sh --with-userdata  # system + vbmeta + userdata
+bash scripts/flash.sh --no-userdata    # default; kept for compatibility
+bash scripts/flash.sh --userdata-only  # userdata only
+```
+
+### Escape hatch: flashing userdata (opt-in)
+
+`userdata.img` is no longer part of the default flow. It is still built and can be
+flashed when needed (e.g. `ROOTFS_SEED_IN_SYSTEM=0` builds where the system image
+carries no rootfs seed — `userdata.img` is then the only provisioning path).
+
+```bash
+make userdata                              # build it if not present
+bash scripts/flash.sh --with-userdata      # system + vbmeta + userdata
+bash scripts/flash.sh --userdata-only      # userdata only
+```
+
+Flashing `userdata` **wipes Android `/data`** (apps, Wi-Fi, settings).
+
+On MediaTek devices, fastboot-flashing `userdata` makes stock recovery show an
+"erase data" confirmation prompt on next boot. This is a stock recovery
+security gate independent of the image content.
 

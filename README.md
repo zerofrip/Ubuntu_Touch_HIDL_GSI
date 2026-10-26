@@ -13,7 +13,8 @@ Ubuntu Touch for Treble devices with **HIDL-era vendor stacks** (Android 8-11), 
 - Flash only:
   - `system.img`
   - `vbmeta-disabled.img`
-- Do not flash `boot`, `vendor_boot`, `dtbo`, `vendor`, or `userdata`.
+- Do not flash `boot`, `vendor_boot`, `dtbo`, or `vendor`. `userdata` is opt-in
+  (`bash scripts/flash.sh --with-userdata`).
 
 ## Current Architecture (Halium-style)
 
@@ -93,6 +94,7 @@ Selective flash:
 ```bash
 make flash-system
 make flash-vbmeta
+bash scripts/flash.sh --with-userdata
 ```
 
 ## Runtime Control
@@ -127,18 +129,22 @@ Main files:
 
 Engine supports mode-aware execution (`android`, `linux`, `both`) for per-action filtering.
 
-## HIDL Variant Defaults
+## Vendor Branch Strategy
 
-`config.env` defaults:
+PHH GSI config is resolved per git branch via `scripts/load_vendor_config.sh`.
+Build on the matching `android-X.Y` branch (or export `VENDOR_ANDROID_VERSION`).
 
-- `PHH_GSI_SOURCE=release`
-- `PHH_GSI_REPO=phhusson/treble_experimentations`
-- `PHH_GSI_VERSION=v416`
-- `PHH_GSI_VARIANT=squeak-arm64-ab-vanilla`
+| Branch | PHH tag | PHH variant (`system-<variant>.img.xz`) |
+|---|---|---|
+| `android-8.1`  | `v32`  | `arm64-ab-vanilla-nosu` |
+| `android-9.0`  | `v123` | `arm64-ab-vanilla-nosu` |
+| `android-10.0` | `v222` | `quack-arm64-ab-vanilla` |
+| `android-11.0` | `v313` | `roar-arm64-ab-vanilla` |
+| `android-12.0` | `v402` | `squeak-arm64-ab-vanilla` |
+| `android-12.1` | `v416` | `squeak-arm64-ab-vanilla` |
 
+All branches use `PHH_GSI_REPO=phhusson/treble_experimentations`.
 Only `arm64 A/B` (dynamic partition) PHH variants are supported.
-
-Override in `config.env` or via environment variables if your target requires a different base.
 
 Local source build mode:
 
@@ -164,7 +170,7 @@ Rootfs persistence/self-heal:
 - Backup copy is kept at `/data/ubuntu-gsi/rootfs.erofs.bak`
 - SHA-256 is verified at boot; missing/corrupt data copy is auto-restored
 - Restore source is system seed `/system/usr/share/ubuntu-gsi/rootfs.erofs`
-- `ROOTFS_SEED_IN_SYSTEM=0` keeps `system.img` smaller, but removes reset-time seed restore
+- `ROOTFS_SEED_IN_SYSTEM=1` (default) embeds the reset-time seed in `system.img`; userdata is flashed only with `--with-userdata` (first boot self-seeds otherwise)
 
 System layout profile:
 

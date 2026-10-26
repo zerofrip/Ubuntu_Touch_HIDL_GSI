@@ -23,6 +23,8 @@ jobs:
           find . -name '*.sh' \
             -not -path './third_party/*' \
             -not -path './builder/out/*' \
+            -not -path './builder/cache/*' \
+            -not -path './deprecated/*' \
             -print0 | xargs -0 shellcheck --severity=warning
 
   json-validate:
